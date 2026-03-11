@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "ShumTube Auth Helper",
+    "description": "Extension name"
+  },
+  "extDescription": {
+    "message": "ShumTube avtorizatsiya yordamchisi. Google Labs sessiyasini boshqaradi, rasm va video generatsiyasi uchun reCAPTCHA hal qiladi.",
+    "description": "Extension description shown in Chrome Web Store"
+  }
+}

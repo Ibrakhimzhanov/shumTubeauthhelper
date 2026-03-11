@@ -1,0 +1,63 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_extName__",
+  "description": "__MSG_extDescription__",
+  "version": "1.0.0",
+  "default_locale": "ru",
+  "homepage_url": "https://github.com/Ibrakhimzhanov/ShumGenerate_v2",
+  "permissions": [
+    "alarms",
+    "cookies",
+    "tabs",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://labs.google/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "*://*.google.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://labs.google/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "__MSG_extName__",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "page_script.js",
+        "i18n.js",
+        "icon48.png",
+        "popup.html",
+        "popup.js"
+      ],
+      "matches": [
+        "https://labs.google/*"
+      ]
+    }
+  ],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
