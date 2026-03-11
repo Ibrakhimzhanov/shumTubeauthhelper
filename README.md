@@ -1,6 +1,6 @@
 # ShumTube Auth Helper
 
-Chrome extension for [ShumTube Generator](https://github.com/Ibrakhimzhanov/ShumGenerate_v2) desktop application.
+Chrome extension for ShumTube Generator desktop application.
 
 ## What it does
 
