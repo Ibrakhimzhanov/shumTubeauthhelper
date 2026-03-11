@@ -36,4 +36,4 @@ This extension communicates exclusively with the ShumTube Generator desktop appl
 - No user data is transmitted or stored externally
 
 ## Contact
-For questions about this privacy policy, contact: shumtube@example.com
+For questions about this privacy policy, contact: i.ibrakhimzhanovit@gmail.com
